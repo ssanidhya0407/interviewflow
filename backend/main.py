@@ -33,8 +33,30 @@ from email_service import EmailService
 app = FastAPI(title="CareerForge AI API", version="2.0.0")
 
 # CORS Configuration
-origins = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
-origins = [origin.strip() for origin in origins if origin.strip()]
+def parse_allowed_origins(raw_origins: str) -> List[str]:
+    """Accept comma-separated strings or JSON arrays from env vars."""
+    if not raw_origins:
+        return []
+
+    raw_origins = raw_origins.strip()
+    parsed: List[str] = []
+
+    if raw_origins.startswith("["):
+        try:
+            value = json.loads(raw_origins)
+            if isinstance(value, list):
+                parsed = [str(item).strip() for item in value]
+        except json.JSONDecodeError:
+            parsed = []
+    else:
+        parsed = [origin.strip() for origin in raw_origins.split(",")]
+
+    # Normalize trailing slash so browser origin matching is consistent.
+    return [origin.rstrip("/") for origin in parsed if origin]
+
+
+origins = parse_allowed_origins(os.getenv("CORS_ALLOWED_ORIGINS", ""))
+allow_origin_regex = os.getenv("CORS_ALLOWED_ORIGIN_REGEX", "").strip() or None
 
 # Default origins if none specified
 if not origins:
@@ -48,6 +70,7 @@ if not origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
