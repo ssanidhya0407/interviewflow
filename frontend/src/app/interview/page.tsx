@@ -395,7 +395,6 @@ function InterviewContent() {
             const aiMsg = { role: "model", content: data.message };
             setMessages(prev => [...prev, aiMsg]);
             speakText(data.message);
-            if (data.is_interview_ended) setIsCompleted(true);
         } catch (error) {
             console.error("Chat error", error);
         } finally {
