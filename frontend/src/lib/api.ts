@@ -97,6 +97,10 @@ export interface InterviewRecord {
     interview_type: string;
     company?: string;
     score?: number;
+    communication_score?: number;
+    technical_score?: number;
+    problem_solving_score?: number;
+    culture_fit_score?: number;
     started_at: string;
     completed_at?: string;
 }
@@ -123,6 +127,15 @@ export interface UserSettings {
     email_reminders: boolean;
     reminder_frequency: string;
 }
+
+export const DEFAULT_USER_SETTINGS: UserSettings = {
+    theme: "dark",
+    language: "en",
+    enable_timer: false,
+    time_per_question: 120,
+    email_reminders: false,
+    reminder_frequency: "weekly"
+};
 
 
 export const register = async (email: string, password: string, fullName?: string): Promise<AuthResponse> => {
@@ -211,8 +224,15 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
 
 
 export const getSettings = async (): Promise<UserSettings> => {
-    const response = await api.get('/api/settings');
-    return response.data;
+    try {
+        const response = await api.get('/api/settings');
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+            return DEFAULT_USER_SETTINGS;
+        }
+        throw error;
+    }
 };
 
 export const updateSettings = async (settings: Partial<UserSettings>): Promise<void> => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -8,14 +9,31 @@ import {
   Briefcase, Zap, CheckCircle2
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { isLoggedIn, isLoading } = useAuth();
   const [introStage, setIntroStage] = useState<"liquid" | "complete">("liquid");
+  const nextRoute = searchParams.get("next");
 
   useEffect(() => {
-    const timer = setTimeout(() => setIntroStage("complete"), 2300);
+    const wantsDashboard = nextRoute === "dashboard";
+    if (wantsDashboard && isLoading) {
+      return;
+    }
+
+    const shouldGoDashboard = wantsDashboard && isLoggedIn;
+    const timer = setTimeout(() => {
+      if (shouldGoDashboard) {
+        router.replace("/dashboard");
+        return;
+      }
+      setIntroStage("complete");
+    }, 2300);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isLoading, isLoggedIn, nextRoute, router]);
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30 transition-colors duration-300">

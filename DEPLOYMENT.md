@@ -48,11 +48,11 @@ This guide explains how to deploy the Career Forge AI application using Docker C
 ## Architecture Note
 
 -   **Frontend**: Runs on Port 3000. It is a client-side React app, so it needs to know where the Backend is reachable from the *User's Browser* (hence `NEXT_PUBLIC_API_URL`).
--   **Backend**: Runs on Port 8000. It stores data in a local SQLite file (`careerforge.db`).
+-   **Backend**: Runs on Port 8000. It stores data in a local SQLite file (`interviewflow.db`).
 
 ## 🌍 How to Share with the World (Public Access)
 
-To make your app accessible to anyone on the internet (e.g., `www.careerforge.com`), you need a server. Here are the two best options:
+To make your app accessible to anyone on the internet (e.g., `www.interviewflow.com`), you need a server. Here are the two best options:
 
 ### Option 1: VPS (DigitalOcean / AWS / Linode) - **recommended**
 This is the most robust method for this app because it uses **SQLite**. A VPS gives you a persistent file system so your database isn't deleted when the server restarts.

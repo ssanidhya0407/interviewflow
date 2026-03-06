@@ -16,12 +16,12 @@ async def main():
     print(f"📧 Sending Welcome Email to {recipient}...")
     welcome_body = """
     <p>We are thrilled to have you join our community.</p>
-    <p>CareerForge.ai is designed to be your personal interview coach, available 24/7. Get started by setting up your first mock interview session tailored to your resume.</p>
+    <p>InterviewFlow.ai is designed to be your personal interview coach, available 24/7. Get started by setting up your first mock interview session tailored to your resume.</p>
     <p>If you have any questions, our support team is here to help.</p>
     """
     await service.send_email(
         [recipient], 
-        "Welcome to CareerForge.ai", 
+        "Welcome to InterviewFlow.ai", 
         welcome_body,
         cta_text="Start First Session",
         cta_link="http://localhost:3000/setup"

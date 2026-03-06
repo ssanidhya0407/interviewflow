@@ -12,7 +12,7 @@ class EmailService:
         self.username = os.getenv("MAIL_USERNAME")
         self.password = os.getenv("MAIL_PASSWORD")
         self.use_tls = os.getenv("MAIL_STARTTLS", "True").lower() == "true"
-        self.mail_from = os.getenv("MAIL_FROM", "noreply@careerforge.ai")
+        self.mail_from = os.getenv("MAIL_FROM", "noreply@interviewflow.ai")
         
         print(f"📧 EmailService Config: Server={self.smtp_server}:{self.smtp_port}, User={self.username}, TLS={self.use_tls}")
         
@@ -52,7 +52,7 @@ class EmailService:
         <body>
             <div class="container">
                 <div class="header">
-                    <span class="logo">CareerForge.ai</span>
+                    <span class="logo">InterviewFlow.ai</span>
                 </div>
                 <div class="content">
                     <h1>{title}</h1>
@@ -62,7 +62,7 @@ class EmailService:
                     {button_html}
                 </div>
                 <div class="footer">
-                    <p>&copy; 2026 CareerForge.ai. All rights reserved.</p>
+                    <p>&copy; 2026 InterviewFlow.ai. All rights reserved.</p>
                 </div>
             </div>
         </body>
@@ -118,12 +118,12 @@ class EmailService:
         <html>
             <body>
                 <h1>Hi {name or 'There'},</h1>
-                <p>It's been a while since your last mock interview on CareerForge.ai.</p>
+                <p>It's been a while since your last mock interview on InterviewFlow.ai.</p>
                 <p>Consistency is key to landing your dream job!</p>
                 <br>
                 <a href="http://localhost:3000" style="background-color: #4F46E5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Start Practice Session</a>
                 <br><br>
-                <p>Keep grinding,<br>The CareerForge Team</p>
+                <p>Keep grinding,<br>The InterviewFlow Team</p>
             </body>
         </html>
         """

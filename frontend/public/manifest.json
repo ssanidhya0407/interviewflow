@@ -1,6 +1,6 @@
 {
-    "name": "CareerForge.ai",
-    "short_name": "CareerForge",
+    "name": "InterviewFlow.ai",
+    "short_name": "InterviewFlow",
     "description": "AI Interview Coach - Master your next interview",
     "start_url": "/",
     "display": "standalone",

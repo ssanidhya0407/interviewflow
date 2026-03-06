@@ -49,7 +49,7 @@ class InterviewState(BaseModel):
     max_questions: int = 5
     is_completed: bool = False
     follow_up_count: int = 0
-    current_interviewer: str = "CareerForge"
+    current_interviewer: str = "InterviewFlow"
 
 
 class UserResponse(BaseModel):

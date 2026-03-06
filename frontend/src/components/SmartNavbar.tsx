@@ -2,13 +2,14 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion";
 import { useAuth } from "@/components/AuthProvider";
 import { LogOut, LayoutDashboard, Settings, Menu, Sparkles, History } from "lucide-react";
 
 export function SmartNavbar() {
     const pathname = usePathname();
+    const router = useRouter();
     const { isLoggedIn, logout } = useAuth();
     const [isHoverExpanded, setIsHoverExpanded] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -54,11 +55,19 @@ export function SmartNavbar() {
 
     const authenticatedItems = [
         { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-        { name: "Setup", href: "/setup", icon: Sparkles },
+        { name: "Setup Interview", href: "/setup", icon: Sparkles },
         { name: "History", href: "/history", icon: History }
     ];
 
     const isActive = (path: string) => pathname === path || pathname?.startsWith(path + "/");
+
+    const handleBrandClick = () => {
+        if (isLoggedIn) {
+            router.push("/?next=dashboard");
+            return;
+        }
+        router.push("/");
+    };
 
     return (
         <motion.nav className="fixed top-8 inset-x-0 z-50 flex justify-center pointer-events-none">
@@ -79,7 +88,7 @@ export function SmartNavbar() {
                 <motion.div
                     layoutId="brand-logo"
                     className="flex items-center gap-2 px-4 cursor-pointer"
-                    onClick={() => (window.location.href = "/")}
+                    onClick={handleBrandClick}
                     transition={{ type: "spring", stiffness: 260, damping: 22, mass: 0.8 }}
                 >
                     <span className="inline-block pb-[2px] text-[18px] font-bold tracking-[0.02em] bg-gradient-to-b from-black to-zinc-600 dark:from-white dark:to-zinc-400 bg-clip-text text-transparent drop-shadow-sm transition-colors duration-300">
@@ -112,7 +121,7 @@ export function SmartNavbar() {
                                         href="/setup"
                                         className={`px-5 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${isActive("/setup") ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"}`}
                                     >
-                                        Setup
+                                        Setup Interview
                                     </Link>
                                     {!isLoggedIn && (
                                         <Link

@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/careerforge.db:/app/careerforge.db
+      - ./backend/interviewflow.db:/app/interviewflow.db
       - ./backend/uploads:/app/uploads
     environment:
       - GOOGLE_GENAI_API_KEY=${GOOGLE_GENAI_API_KEY}

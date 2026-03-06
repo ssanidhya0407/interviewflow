@@ -65,7 +65,7 @@ LANGUAGE_PROMPTS = {
 
 
 def build_system_prompt(config: InterviewConfig) -> str:
-    base_prompt = """You are an expert AI Interview Coach named 'CareerForge'.
+    base_prompt = """You are an expert AI Interview Coach named 'InterviewFlow'.
 Your goal is to conduct a realistic, professional job interview.
 
 Protocol:
@@ -100,7 +100,7 @@ interview_agent = Agent(
     model,
     system_prompt="",
     deps_type=InterviewConfig,
-    retries=2
+    retries=0
 )
 
 

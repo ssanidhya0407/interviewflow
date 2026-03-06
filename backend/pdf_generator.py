@@ -1,67 +1,178 @@
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, mm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
-from reportlab.graphics.shapes import Drawing, Rect, Circle, String
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from io import BytesIO
 from datetime import datetime
-from typing import Optional
+from io import BytesIO
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-# Brand Colors
-PRIMARY_COLOR = colors.HexColor('#6366f1')  # Indigo
-SECONDARY_COLOR = colors.HexColor('#4338ca')
-BG_COLOR = colors.HexColor('#f8fafc')
-TEXT_COLOR = colors.HexColor('#1e293b')
-MUTED_COLOR = colors.HexColor('#64748b')
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
+from reportlab.platypus import (
+    Flowable,
+    HRFlowable,
+    Image,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+from reportlab.lib.utils import ImageReader
 
-def header(canvas, doc):
-    canvas.saveState()
-    # Header Background
-    canvas.setFillColor(PRIMARY_COLOR)
-    canvas.rect(0, 10*inch, 8.5*inch, 1*inch, fill=1, stroke=0)
-    
-    # Title
-    canvas.setFillColor(colors.white)
-    canvas.setFont("Helvetica-Bold", 24)
-    canvas.drawString(0.5*inch, 10.4*inch, "CareerForge.ai")
-    
-    # Subtitle
-    canvas.setFont("Helvetica", 12)
-    canvas.drawString(0.5*inch, 10.2*inch, "AI-Powered Interview Coach Report")
-    
-    # Footer
-    canvas.setFillColor(MUTED_COLOR)
-    canvas.setFont("Helvetica", 9)
-    canvas.drawCentredString(4.25*inch, 0.5*inch, f"Generated on {datetime.now().strftime('%B %d, %Y')} | CareerForge.ai")
-    
-    canvas.restoreState()
+PAGE_BG = colors.HexColor("#0b0b0e")
+CARD_BG = colors.HexColor("#101015")
+BORDER = colors.HexColor("#23232d")
+TEXT = colors.HexColor("#f5f5f7")
+MUTED = colors.HexColor("#9a9aa5")
+BLUE = colors.HexColor("#2f80ed")
+PINK = colors.HexColor("#ff0a78")
+LIME = colors.HexColor("#b6ff00")
+CYAN = colors.HexColor("#23e9de")
 
-def generate_score_badge(score: int) -> Drawing:
-    d = Drawing(100, 100)
-    d.add(Circle(50, 50, 40, fillColor=None, strokeColor=PRIMARY_COLOR, strokeWidth=4))
-    
+RING_CONFIG = [
+    ("Communication", PINK),
+    ("Technical", LIME),
+    ("Problem Solving", CYAN),
+    ("Culture Fit", colors.HexColor("#ffa31a")),
+]
+
+WORDMARK_PATH = Path(__file__).resolve().parents[1] / "frontend" / "public" / "wordmark.png"
+
+
+class Card(Flowable):
+    def __init__(self, width: float, height: float):
+        super().__init__()
+        self.width = width
+        self.height = height
+
+    def wrap(self, *_):
+        return self.width, self.height
+
+    def draw(self):
+        self.canv.saveState()
+        self.canv.setFillColor(CARD_BG)
+        self.canv.setStrokeColor(BORDER)
+        self.canv.roundRect(0, 0, self.width, self.height, 12, fill=1, stroke=1)
+        self.canv.restoreState()
+
+
+class ClusteredRings(Flowable):
+    def __init__(self, values: list[int], size: float = 120):
+        super().__init__()
+        self.values = values[:4]
+        self.size = size
+        self.width = size
+        self.height = size
+
+    def wrap(self, *_):
+        return self.width, self.height
+
+    def draw(self):
+        c = self.canv
+        cx = self.size / 2
+        cy = self.size / 2
+
+        radii = [self.size * 0.42, self.size * 0.32, self.size * 0.22, self.size * 0.12]
+        stroke = self.size * 0.10
+
+        for idx, value in enumerate(self.values):
+            radius = radii[idx]
+            _, color = RING_CONFIG[idx]
+            progress = max(0, min(100, value)) / 100.0
+
+            c.setLineWidth(stroke)
+            c.setStrokeColor(colors.Color(color.red, color.green, color.blue, alpha=0.28))
+            c.circle(cx, cy, radius, stroke=1, fill=0)
+
+            c.setLineCap(1)
+            c.setStrokeColor(color)
+            c.setLineWidth(stroke)
+            start = 90
+            extent = -360 * progress
+            c.arc(cx - radius, cy - radius, cx + radius, cy + radius, startAng=start, extent=extent)
+
+
+class IndividualRings(Flowable):
+    def __init__(self, values: list[int], width: float = 300, height: float = 70):
+        super().__init__()
+        self.values = values[:4]
+        self.width = width
+        self.height = height
+
+    def wrap(self, *_):
+        return self.width, self.height
+
+    def draw(self):
+        c = self.canv
+        ring_size = 30
+        radius = 11
+        stroke = 6
+        gap = self.width / 4
+
+        for idx, value in enumerate(self.values):
+            label, color = RING_CONFIG[idx]
+            progress = max(0, min(100, value)) / 100.0
+
+            x = idx * gap + 4
+            y = self.height - 34
+            cx = x + (ring_size / 2)
+            cy = y + (ring_size / 2)
+
+            c.setLineWidth(stroke)
+            c.setStrokeColor(colors.Color(color.red, color.green, color.blue, alpha=0.28))
+            c.circle(cx, cy, radius, stroke=1, fill=0)
+
+            c.setLineCap(1)
+            c.setStrokeColor(color)
+            c.arc(cx - radius, cy - radius, cx + radius, cy + radius, startAng=90, extent=-360 * progress)
+
+            c.setFillColor(TEXT)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(x + ring_size + 6, y + 14, f"{label}")
+            c.setFillColor(MUTED)
+            c.setFont("Helvetica", 8)
+            c.drawString(x + ring_size + 6, y + 3, f"{int(value)}%")
+
+
+def _score_color(score: int):
     if score >= 70:
-        color = colors.green
-    elif score >= 50:
-        color = colors.orange
+        return colors.HexColor("#22c55e")
+    if score >= 50:
+        return colors.HexColor("#f59e0b")
+    return colors.HexColor("#ef4444")
+
+
+def _page_bg(canv: canvas.Canvas, doc: Any):
+    canv.saveState()
+    canv.setFillColor(PAGE_BG)
+    canv.rect(0, 0, letter[0], letter[1], fill=1, stroke=0)
+
+    footer_y = 14
+    if WORDMARK_PATH.exists():
+        try:
+            mark = ImageReader(str(WORDMARK_PATH))
+            iw, ih = mark.getSize()
+            target_w = 94
+            target_h = target_w * (ih / iw) if iw else 16
+            x = (letter[0] - target_w) / 2
+            canv.drawImage(mark, x, footer_y, width=target_w, height=target_h, mask="auto", preserveAspectRatio=True)
+        except Exception:
+            canv.setFillColor(TEXT)
+            canv.setFont("Helvetica-Bold", 9)
+            canv.drawCentredString(letter[0] / 2, footer_y + 7, "InterviewFlow")
     else:
-        color = colors.red
-        
-    s = String(50, 45, str(score), textAnchor='middle')
-    s.fontName = 'Helvetica-Bold'
-    s.fontSize = 24
-    s.fillColor = color
-    d.add(s)
-    
-    lbl = String(50, 25, "/100", textAnchor='middle')
-    lbl.fontName = 'Helvetica'
-    lbl.fontSize = 10
-    lbl.fillColor = colors.grey
-    d.add(lbl)
-    
-    return d
+        canv.setFillColor(TEXT)
+        canv.setFont("Helvetica-Bold", 9)
+        canv.drawCentredString(letter[0] / 2, footer_y + 7, "InterviewFlow")
+
+    canv.setFillColor(MUTED)
+    canv.setFont("Helvetica", 8)
+    canv.drawRightString(letter[0] - 36, 20, f"Generated {datetime.now().strftime('%b %d, %Y')}")
+    canv.restoreState()
+
 
 def generate_pdf_report(
     session_id: str,
@@ -69,169 +180,165 @@ def generate_pdf_report(
     experience_level: str,
     score: int,
     summary: str,
-    strengths: list[str],
-    improvements: list[str],
+    strengths: List[str],
+    improvements: List[str],
     communication_score: int = 0,
     technical_score: int = 0,
     problem_solving_score: int = 0,
     culture_fit_score: int = 0,
-    improvement_tips: list[str] = None,
-    transcript: list[dict] = None,
-    voice_metrics: dict = None
+    improvement_tips: Optional[List[str]] = None,
+    transcript: Optional[List[Dict[str, Any]]] = None,
+    voice_metrics: Optional[Dict[str, Any]] = None,
 ) -> bytes:
     buffer = BytesIO()
     doc = SimpleDocTemplate(
-        buffer, 
+        buffer,
         pagesize=letter,
-        topMargin=1.5*inch,
-        bottomMargin=1*inch,
-        leftMargin=0.8*inch,
-        rightMargin=0.8*inch
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
+        leftMargin=0.55 * inch,
+        rightMargin=0.55 * inch,
     )
-    
+
     styles = getSampleStyleSheet()
-    
-    # Custom Styles
-    h1 = ParagraphStyle('H1', parent=styles['Heading1'], fontSize=18, textColor=PRIMARY_COLOR, spaceAfter=12, fontName='Helvetica-Bold')
-    h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontSize=14, textColor=SECONDARY_COLOR, spaceAfter=10, fontName='Helvetica-Bold')
-    normal = ParagraphStyle('Body', parent=styles['Normal'], fontSize=11, leading=15, textColor=TEXT_COLOR)
-    
-    story = []
-    
-    # Meta Info Table
-    meta_data = [
-        [f"Role: {role}", f"Experience: {experience_level}"],
-        [f"Date: {datetime.now().strftime('%Y-%m-%d')}", f"Session ID: {session_id[:8]}"]
-    ]
-    meta_table = Table(meta_data, colWidths=[3.5*inch, 3.4*inch])
-    meta_table.setStyle(TableStyle([
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (0,0), (-1,-1), MUTED_COLOR),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 12),
-        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
-    ]))
-    story.append(meta_table)
-    story.append(Spacer(1, 20))
+    brand = ParagraphStyle("brand", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=22, textColor=TEXT, leading=24, spaceAfter=2)
+    title = ParagraphStyle("title", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=24, textColor=TEXT, leading=28, spaceAfter=6)
+    h2 = ParagraphStyle("h2", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=13, textColor=TEXT, leading=16, spaceBefore=8, spaceAfter=6)
+    body = ParagraphStyle("body", parent=styles["BodyText"], fontName="Helvetica", fontSize=10.2, textColor=TEXT, leading=14)
+    muted = ParagraphStyle("muted", parent=styles["BodyText"], fontName="Helvetica", fontSize=9, textColor=MUTED, leading=12)
 
-    # Overall Score Section
-    story.append(Paragraph("Overall Performance", h1))
-    
-    # We use a table to put Score Circle next to Summary
-    # Left: Score, Right: Summary
-    
-    # Generate Score Drawing
-    score_draw = generate_score_badge(score)
-    
-    summary_text = Paragraph(f"<b>Executive Summary:</b><br/>{summary}", normal)
-    
-    # Layout Table
-    layout_data = [[score_draw, summary_text]]
-    layout_table = Table(layout_data, colWidths=[2*inch, 4.9*inch])
-    layout_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('ALIGN', (0,0), (0,0), 'CENTER'),
-    ]))
-    story.append(layout_table)
-    story.append(Spacer(1, 30))
-    
-    # Category Scores (if present)
-    if any([communication_score, technical_score, problem_solving_score, culture_fit_score]):
-        story.append(Paragraph("Category Breakdown", h2))
-        
-        # Helper to colour score
-        def score_cell(val):
-            c = colors.green if val >= 70 else (colors.orange if val >= 50 else colors.red)
-            return Paragraph(f"<font color={c}>{val}/100</font>", normal)
+    ring_values = [communication_score, technical_score, problem_solving_score, culture_fit_score]
 
-        cat_data = [
-            ["Communication", score_cell(communication_score), "Problem Solving", score_cell(problem_solving_score)],
-            ["Technical", score_cell(technical_score), "Culture Fit", score_cell(culture_fit_score)]
-        ]
-        
-        cat_table = Table(cat_data, colWidths=[2*inch, 1.4*inch, 2*inch, 1.4*inch])
-        cat_table.setStyle(TableStyle([
-            ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'), # Labels
-            ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'), # Labels
-            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f1f5f9')),
-            ('PADDING', (0,0), (-1,-1), 8),
-        ]))
-        story.append(cat_table)
-        story.append(Spacer(1, 20))
+    story: list[Any] = []
 
-    # Strengths & Improvements
-    story.append(Paragraph("Detailed Feedback", h1))
-    
-    col1 = [Paragraph("<b>Key Strengths</b>", h2)] + [Paragraph(f"<font color='green'>✓</font> {s}", normal) for s in strengths]
-    col2 = [Paragraph("<b>Areas for Improvement</b>", h2)] + [Paragraph(f"<font color='orange'>•</font> {i}", normal) for i in improvements]
-    
-    # Balance columns if lists are different lengths
-    max_len = max(len(col1), len(col2))
-    col1 += [String(0,0,"")] * (max_len - len(col1))
-    col2 += [String(0,0,"")] * (max_len - len(col2))
-    
-    # Side by side is tricky with Paragraphs in Table.
-    # We'll just stack them for robust layout.
-    
-    story.append(Paragraph("Key Strengths", h2))
-    for s in strengths:
-        story.append(Paragraph(f"<font color='green'>✓</font> {s}", normal))
+    # Starter cover page
+    story.append(Spacer(1, 2.0 * inch))
+    if WORDMARK_PATH.exists():
+        try:
+            cover = Image(str(WORDMARK_PATH))
+            cover._restrictSize(4.2 * inch, 1.0 * inch)
+            cover.hAlign = "CENTER"
+            story.append(cover)
+        except Exception:
+            story.append(Paragraph("InterviewFlow", brand))
+    else:
+        story.append(Paragraph("InterviewFlow", brand))
+
+    story.append(Spacer(1, 0.45 * inch))
+    story.append(Paragraph("InterviewFlow · Performance Report", title))
+    story.append(Paragraph(f"{role} · {experience_level}", body))
+    story.append(Paragraph(f"Session {session_id[:8]}", muted))
+    story.append(Spacer(1, 0.25 * inch))
+    story.append(Paragraph(f"Overall Score <font color='{_score_color(score)}'><b>{score}/100</b></font>", body))
+    story.append(PageBreak())
+
+    story.append(Paragraph("InterviewFlow · Performance Report", brand))
+    story.append(Paragraph(f"{role} · {experience_level}", title))
+    story.append(Paragraph(f"Session {session_id[:8]} · Overall Score <font color='{_score_color(score)}'>{score}/100</font>", body))
     story.append(Spacer(1, 10))
-    
-    story.append(Paragraph("Areas for Improvement", h2))
-    for i in improvements:
-        story.append(Paragraph(f"<font color='#f59e0b'>•</font> {i}", normal))
-    story.append(Spacer(1, 20))
-    
-    if improvement_tips:
-         story.append(Paragraph("Recommended Actions", h2))
-         for idx, tip in enumerate(improvement_tips, 1):
-             story.append(Paragraph(f"{idx}. {tip}", normal))
-         story.append(Spacer(1, 20))
 
-    # Voice Metrics
+    story.append(Card(doc.width, 145))
+    story.append(Spacer(1, -133))
+
+    top_grid = Table(
+        [
+            [
+                ClusteredRings(ring_values, size=110),
+                Paragraph("<b>Executive Summary</b><br/>" + summary, body),
+            ]
+        ],
+        colWidths=[1.8 * inch, doc.width - 1.8 * inch - 14],
+    )
+    top_grid.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), CARD_BG),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
+    story.append(top_grid)
+    story.append(Spacer(1, 8))
+
+    story.append(Card(doc.width, 88))
+    story.append(Spacer(1, -70))
+    story.append(Paragraph("<b>Dimension Rings</b>", body))
+    story.append(Spacer(1, 4))
+    story.append(IndividualRings(ring_values, width=doc.width - 20, height=52))
+    story.append(Spacer(1, 14))
+
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Strengths", h2))
+    for item in strengths[:8]:
+        story.append(Paragraph(f"<font color='#22c55e'>●</font> {item}", body))
+
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("Improvements", h2))
+    for item in improvements[:8]:
+        story.append(Paragraph(f"<font color='#f59e0b'>●</font> {item}", body))
+
+    if improvement_tips:
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Action Plan", h2))
+        for idx, tip in enumerate(improvement_tips[:8], 1):
+            story.append(Paragraph(f"{idx}. {tip}", body))
+
     if voice_metrics:
         story.append(PageBreak())
-        story.append(Paragraph("Voice & Speech Analysis", h1))
-        
-        vm_data = [
-            ["Metric", "Value", "Assessment"],
-            ["Pace", voice_metrics.get("pace_rating", "-"), "Targets 130-150 wpm"],
-            ["WPM", f"{voice_metrics.get('words_per_minute', 0)}", "-"],
-            ["Filler Words", f"{voice_metrics.get('filler_word_count', 0)}", "um, uh, like"],
-            ["Confidence", f"{voice_metrics.get('confidence_score', 0)}/100", "Tone analysis"],
+        story.append(Paragraph("Speaking Analysis", title))
+        vm_rows = [
+            ["Pace", voice_metrics.get("pace_rating", "-")],
+            ["Words / Minute", str(voice_metrics.get("words_per_minute", 0))],
+            ["Filler Words", str(voice_metrics.get("filler_word_count", 0))],
+            ["Confidence", f"{voice_metrics.get('confidence_score', 0)}%"],
         ]
-        vm_table = Table(vm_data, colWidths=[2*inch, 2*inch, 3*inch])
-        vm_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), PRIMARY_COLOR),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-            ('PADDING', (0,0), (-1,-1), 6),
-        ]))
-        story.append(vm_table)
-        story.append(Spacer(1, 20))
+        vm_t = Table(vm_rows, colWidths=[2.2 * inch, 2.2 * inch])
+        vm_t.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), CARD_BG),
+                    ("GRID", (0, 0), (-1, -1), 0.5, BORDER),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), TEXT),
+                    ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("PADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        story.append(vm_t)
 
-    # Transcript
+        feedback = voice_metrics.get("feedback") or []
+        if feedback:
+            story.append(Spacer(1, 10))
+            story.append(Paragraph("Voice Feedback", h2))
+            for item in feedback[:8]:
+                story.append(Paragraph(f"• {item}", body))
+
     if transcript:
-        story.append(Paragraph("Interview Transcript", h1))
+        story.append(PageBreak())
+        story.append(Paragraph("Interview Transcript", title))
+        story.append(HRFlowable(width="100%", color=BORDER, thickness=1))
+        story.append(Spacer(1, 8))
+        shown = 0
         for msg in transcript:
-            role = msg.get("role", "user")
+            role_name = msg.get("role", "user")
+            if role_name == "system":
+                continue
+            prefix = "You" if role_name == "user" else "Interviewer"
             content = msg.get("content", "")
-            
-            # Colour code roles
-            if role == "model":
-                p = Paragraph(f"<b>Interviewer:</b> {content}", normal)
-            else:
-                p = Paragraph(f"<b>You:</b> <font color='#4a5568'>{content}</font>", normal)
-                
-            story.append(p)
-            story.append(Spacer(1, 8))
+            story.append(Paragraph(f"<b>{prefix}:</b> {content}", body))
+            story.append(Spacer(1, 5))
+            shown += 1
+            if shown >= 24:
+                story.append(Paragraph("<i>Transcript truncated in PDF for readability.</i>", muted))
+                break
 
-    # Build
-    doc.build(story, onFirstPage=header, onLaterPages=header)
-    
+    doc.build(story, onFirstPage=_page_bg, onLaterPages=_page_bg)
     pdf_bytes = buffer.getvalue()
     buffer.close()
-    
     return pdf_bytes

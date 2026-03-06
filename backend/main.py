@@ -10,6 +10,7 @@ import shutil
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from pydantic_ai.exceptions import ModelHTTPError
 
 # Import Beanie models
 from models import (
@@ -30,7 +31,7 @@ from jd_parser import parse_job_description, generate_jd_context
 from pdf_generator import generate_pdf_report
 from email_service import EmailService
 
-app = FastAPI(title="CareerForge AI API", version="2.0.0")
+app = FastAPI(title="InterviewFlow AI API", version="2.0.0")
 
 # CORS Configuration
 def parse_allowed_origins(raw_origins: str) -> List[str]:
@@ -85,6 +86,22 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 # Services
 email_service = EmailService()
 scheduler = AsyncIOScheduler()
+
+
+def handle_model_error(exc: Exception, context: str = "AI request") -> None:
+    """Normalize model/provider failures to clear HTTP responses for the client."""
+    if isinstance(exc, ModelHTTPError):
+        if exc.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="InterviewFlow is temporarily rate-limited by the AI provider. Please wait 30-60 seconds and try again."
+            ) from exc
+        raise HTTPException(
+            status_code=502,
+            detail=f"{context} failed upstream (status {exc.status_code}). Please retry."
+        ) from exc
+
+    raise HTTPException(status_code=500, detail=f"{context} failed unexpectedly. Please retry.") from exc
 
 async def check_reminders():
     """Background task to send reminders based on user settings."""
@@ -248,7 +265,7 @@ async def register(user_data: UserCreate):
     # Send welcome email
     await email_service.send_email(
         [user.email], 
-        "Welcome to CareerForge.ai! 🚀", 
+        "Welcome to InterviewFlow.ai! 🚀", 
         f"<h1>Welcome {user.full_name}!</h1><p>We're excited to help you ace your next interview.</p>"
     )
     
@@ -362,10 +379,13 @@ async def start_interview(
     interview_dict = interview_model.model_dump(exclude={"id"})
     update_time, doc_ref = db.collection('interviews').add(interview_dict)
     
-    response = await interview_agent.run(
-        "Please start the interview by introducing yourself and asking the first question.",
-        deps=config
-    )
+    try:
+        response = await interview_agent.run(
+            "Please start the interview by introducing yourself and asking the first question.",
+            deps=config
+        )
+    except Exception as exc:
+        handle_model_error(exc, "Interview start")
     
     state.conversation_history.append(Message(role="model", content=response.output))
     await save_session_state(session_id, state)
@@ -396,10 +416,13 @@ async def chat(req: UserResponse):
         followup = random.choice(FOLLOWUP_PROMPTS)
         state.follow_up_count += 1
         
-        response = await interview_agent.run(
-            f"The candidate said: '{req.content}'. This answer could use more depth. Ask this follow-up: {followup}",
-            deps=state.interview_config
-        )
+        try:
+            response = await interview_agent.run(
+                f"The candidate said: '{req.content}'. This answer could use more depth. Ask this follow-up: {followup}",
+                deps=state.interview_config
+            )
+        except Exception as exc:
+            handle_model_error(exc, "Interview follow-up")
         
         state.conversation_history.append(Message(role="model", content=response.output))
         await save_session_state(req.session_id, state)
@@ -409,10 +432,13 @@ async def chat(req: UserResponse):
     state.follow_up_count = 0
     
     if state.question_count >= state.max_questions:
-        response = await interview_agent.run(
-            f"User response: {req.content}. This was the final question. Thank the candidate warmly and say 'Interview Concluded'.",
-            deps=state.interview_config
-        )
+        try:
+            response = await interview_agent.run(
+                f"User response: {req.content}. This was the final question. Thank the candidate warmly and say 'Interview Concluded'.",
+                deps=state.interview_config
+            )
+        except Exception as exc:
+            handle_model_error(exc, "Interview finalization")
         state.is_completed = True
         state.conversation_history.append(Message(role="model", content=response.output))
         
@@ -428,10 +454,13 @@ async def chat(req: UserResponse):
         
         return {"message": response.output, "is_interview_ended": True}
     
-    response = await interview_agent.run(
-        f"The candidate says: '{req.content}'. Acknowledge briefly then ask the next question.",
-        deps=state.interview_config
-    )
+    try:
+        response = await interview_agent.run(
+            f"The candidate says: '{req.content}'. Acknowledge briefly then ask the next question.",
+            deps=state.interview_config
+        )
+    except Exception as exc:
+        handle_model_error(exc, "Interview turn")
     
     state.conversation_history.append(Message(role="model", content=response.output))
     await save_session_state(req.session_id, state)
@@ -561,7 +590,10 @@ async def get_feedback(req: FeedbackRequest):
     
     voice_metrics = analyze_all_responses([m.model_dump() for m in state.conversation_history])
     
-    result = await feedback_agent.run(f"Interview transcript:\n{transcript}")
+    try:
+        result = await feedback_agent.run(f"Interview transcript:\n{transcript}")
+    except Exception as exc:
+        handle_model_error(exc, "Feedback generation")
     
     try:
         content = result.output
@@ -652,7 +684,7 @@ async def export_pdf(req: FeedbackRequest):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=careerforge_report_{req.session_id[:8]}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=interviewflow_report_{req.session_id[:8]}.pdf"}
     )
 
 
@@ -689,6 +721,10 @@ async def get_user_interviews(
             "interview_type": i.interview_type,
             "company": i.company,
             "score": i.score,
+            "communication_score": i.communication_score,
+            "technical_score": i.technical_score,
+            "problem_solving_score": i.problem_solving_score,
+            "culture_fit_score": i.culture_fit_score,
             "started_at": i.started_at.isoformat() if i.started_at else None,
             "completed_at": i.completed_at.isoformat() if i.completed_at else None
         }

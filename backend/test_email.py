@@ -11,7 +11,7 @@ async def main():
     service = EmailService()
     
     recipient = "ssanidhya0407@gmail.com" # Send to self for testing
-    subject = "Test Email from CareerForge Debugger"
+    subject = "Test Email from InterviewFlow Debugger"
     body = "<h1>It Works!</h1><p>If you are reading this, the SMTP connection is valid.</p>"
     
     print(f"📧 Attempting to send to {recipient}...")
