@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import {
 import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/components/AuthProvider";
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isLoggedIn, isLoading } = useAuth();
@@ -332,5 +332,13 @@ export default function Home() {
         <p className="text-muted-foreground text-sm">© 2026 InterviewFlow</p>
       </footer>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <HomeContent />
+    </Suspense>
   );
 }

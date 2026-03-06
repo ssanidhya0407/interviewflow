@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
-import axios from "axios";
 import {
   ArrowLeft,
   ArrowRight,
@@ -111,13 +110,8 @@ export default function SetupPage() {
         sessionStorage.setItem(`initialInterviewMessage:${data.session_id}`, data.message);
       }
       router.push(`/interview?session_id=${data.session_id}`);
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const message = error.response?.data?.detail || `Request failed (${error.response?.status || "network"})`;
-        alert(message);
-      } else {
-        alert("Connection error.");
-      }
+    } catch {
+      alert("Connection error.");
     } finally {
       setLoading(false);
     }

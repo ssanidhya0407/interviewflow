@@ -1,12 +1,23 @@
 import os
+from typing import List, Optional, Tuple
 from dotenv import load_dotenv
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models.mistral import MistralModel
 from models import InterviewConfig, COMPANY_PROFILES, INTERVIEWER_PERSONAS
 
 load_dotenv()
 
-model = MistralModel('open-mistral-7b')
+_DEFAULT_MISTRAL_MODELS = "mistral-large-2411,mistral-medium-latest,mistral-large-2407,mistral-large-2402,mistral-large-latest"
+AI_MISTRAL_MODELS: List[str] = [
+    m.strip()
+    for m in os.getenv("AI_MISTRAL_MODELS", _DEFAULT_MISTRAL_MODELS).split(",")
+    if m.strip()
+]
+if not AI_MISTRAL_MODELS:
+    AI_MISTRAL_MODELS = ["mistral-medium-latest"]
+
+print(f"🤖 InterviewFlow Mistral model fallback order: {', '.join(AI_MISTRAL_MODELS)}")
 
 
 INTERVIEW_TYPE_PROMPTS = {
@@ -96,15 +107,6 @@ NEVER respond in Hindi, Hinglish, or any mixed language unless explicitly config
     return full_prompt
 
 
-interview_agent = Agent(
-    model,
-    system_prompt="",
-    deps_type=InterviewConfig,
-    retries=0
-)
-
-
-@interview_agent.system_prompt
 def dynamic_system_prompt(ctx: RunContext[InterviewConfig]) -> str:
     config = ctx.deps
     base = build_system_prompt(config)
@@ -121,6 +123,27 @@ def dynamic_system_prompt(ctx: RunContext[InterviewConfig]) -> str:
         context += f"\n\nJob Requirements:\n{config.job_description[:500]}"
     
     return base + context
+
+
+def _build_interview_agent(model_name: str) -> Agent[InterviewConfig, str]:
+    agent = Agent(
+        MistralModel(model_name),
+        system_prompt="",
+        deps_type=InterviewConfig,
+        retries=0
+    )
+
+    @agent.system_prompt
+    def _system_prompt(ctx: RunContext[InterviewConfig]) -> str:
+        return dynamic_system_prompt(ctx)
+
+    return agent
+
+
+INTERVIEW_AGENT_POOL: List[Tuple[str, Agent[InterviewConfig, str]]] = [
+    (name, _build_interview_agent(name)) for name in AI_MISTRAL_MODELS
+]
+interview_agent = INTERVIEW_AGENT_POOL[0][1]
 
 
 FEEDBACK_PROMPT = """You are an expert interview evaluator.
@@ -150,10 +173,11 @@ Generate JSON with EXACTLY this structure:
 Do not output markdown. Just raw JSON."""
 
 
-feedback_agent = Agent(
-    model,
-    system_prompt=FEEDBACK_PROMPT
-)
+FEEDBACK_AGENT_POOL: List[Tuple[str, Agent[None, str]]] = [
+    (name, Agent(MistralModel(name), system_prompt=FEEDBACK_PROMPT, retries=0))
+    for name in AI_MISTRAL_MODELS
+]
+feedback_agent = FEEDBACK_AGENT_POOL[0][1]
 
 
 IMPROVEMENT_PROMPT = """Based on the interview performance, generate personalized improvement recommendations.
@@ -167,9 +191,42 @@ Be specific and actionable. Format as a helpful coaching response."""
 
 
 improvement_agent = Agent(
-    model,
-    system_prompt=IMPROVEMENT_PROMPT
+    MistralModel(AI_MISTRAL_MODELS[0]),
+    system_prompt=IMPROVEMENT_PROMPT,
+    retries=0
 )
+
+
+async def run_interview_with_fallback(prompt: str, deps: InterviewConfig):
+    last_exc: Optional[Exception] = None
+    for model_name, agent in INTERVIEW_AGENT_POOL:
+        try:
+            return await agent.run(prompt, deps=deps)
+        except Exception as exc:
+            last_exc = exc
+            if isinstance(exc, ModelHTTPError) and exc.status_code in {429, 500, 502, 503, 504}:
+                print(f"⚠️ Interview model {model_name} failed with status {exc.status_code}, trying next fallback model...")
+                continue
+            raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("No interview model available")
+
+
+async def run_feedback_with_fallback(prompt: str):
+    last_exc: Optional[Exception] = None
+    for model_name, agent in FEEDBACK_AGENT_POOL:
+        try:
+            return await agent.run(prompt)
+        except Exception as exc:
+            last_exc = exc
+            if isinstance(exc, ModelHTTPError) and exc.status_code in {429, 500, 502, 503, 504}:
+                print(f"⚠️ Feedback model {model_name} failed with status {exc.status_code}, trying next fallback model...")
+                continue
+            raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("No feedback model available")
 
 
 def get_panel_interviewer(interviewer_type: str) -> dict:

@@ -10,14 +10,17 @@ import shutil
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from pydantic_ai.exceptions import ModelHTTPError
 
 # Import Beanie models
 from models import (
     InterviewConfig, InterviewState, UserResponse, Message, COMPANY_PROFILES,
     User, Interview, UserSettings
 )
-from agent import interview_agent, feedback_agent, improvement_agent, should_ask_followup, FOLLOWUP_PROMPTS
+from agent import (
+    interview_agent, feedback_agent, improvement_agent,
+    run_interview_with_fallback, run_feedback_with_fallback,
+    should_ask_followup, FOLLOWUP_PROMPTS
+)
 from db import init_db, get_db, get_bucket
 from firebase_admin import firestore
 from auth import (
@@ -86,22 +89,6 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 # Services
 email_service = EmailService()
 scheduler = AsyncIOScheduler()
-
-
-def handle_model_error(exc: Exception, context: str = "AI request") -> None:
-    """Normalize model/provider failures to clear HTTP responses for the client."""
-    if isinstance(exc, ModelHTTPError):
-        if exc.status_code == 429:
-            raise HTTPException(
-                status_code=429,
-                detail="InterviewFlow is temporarily rate-limited by the AI provider. Please wait 30-60 seconds and try again."
-            ) from exc
-        raise HTTPException(
-            status_code=502,
-            detail=f"{context} failed upstream (status {exc.status_code}). Please retry."
-        ) from exc
-
-    raise HTTPException(status_code=500, detail=f"{context} failed unexpectedly. Please retry.") from exc
 
 async def check_reminders():
     """Background task to send reminders based on user settings."""
@@ -379,13 +366,10 @@ async def start_interview(
     interview_dict = interview_model.model_dump(exclude={"id"})
     update_time, doc_ref = db.collection('interviews').add(interview_dict)
     
-    try:
-        response = await interview_agent.run(
-            "Please start the interview by introducing yourself and asking the first question.",
-            deps=config
-        )
-    except Exception as exc:
-        handle_model_error(exc, "Interview start")
+    response = await run_interview_with_fallback(
+        "Please start the interview by introducing yourself and asking the first question.",
+        deps=config
+    )
     
     state.conversation_history.append(Message(role="model", content=response.output))
     await save_session_state(session_id, state)
@@ -416,13 +400,10 @@ async def chat(req: UserResponse):
         followup = random.choice(FOLLOWUP_PROMPTS)
         state.follow_up_count += 1
         
-        try:
-            response = await interview_agent.run(
-                f"The candidate said: '{req.content}'. This answer could use more depth. Ask this follow-up: {followup}",
-                deps=state.interview_config
-            )
-        except Exception as exc:
-            handle_model_error(exc, "Interview follow-up")
+        response = await run_interview_with_fallback(
+            f"The candidate said: '{req.content}'. This answer could use more depth. Ask this follow-up: {followup}",
+            deps=state.interview_config
+        )
         
         state.conversation_history.append(Message(role="model", content=response.output))
         await save_session_state(req.session_id, state)
@@ -432,13 +413,10 @@ async def chat(req: UserResponse):
     state.follow_up_count = 0
     
     if state.question_count >= state.max_questions:
-        try:
-            response = await interview_agent.run(
-                f"User response: {req.content}. This was the final question. Thank the candidate warmly and say 'Interview Concluded'.",
-                deps=state.interview_config
-            )
-        except Exception as exc:
-            handle_model_error(exc, "Interview finalization")
+        response = await run_interview_with_fallback(
+            f"User response: {req.content}. This was the final question. Thank the candidate warmly and say 'Interview Concluded'.",
+            deps=state.interview_config
+        )
         state.is_completed = True
         state.conversation_history.append(Message(role="model", content=response.output))
         
@@ -454,13 +432,10 @@ async def chat(req: UserResponse):
         
         return {"message": response.output, "is_interview_ended": True}
     
-    try:
-        response = await interview_agent.run(
-            f"The candidate says: '{req.content}'. Acknowledge briefly then ask the next question.",
-            deps=state.interview_config
-        )
-    except Exception as exc:
-        handle_model_error(exc, "Interview turn")
+    response = await run_interview_with_fallback(
+        f"The candidate says: '{req.content}'. Acknowledge briefly then ask the next question.",
+        deps=state.interview_config
+    )
     
     state.conversation_history.append(Message(role="model", content=response.output))
     await save_session_state(req.session_id, state)
@@ -590,10 +565,7 @@ async def get_feedback(req: FeedbackRequest):
     
     voice_metrics = analyze_all_responses([m.model_dump() for m in state.conversation_history])
     
-    try:
-        result = await feedback_agent.run(f"Interview transcript:\n{transcript}")
-    except Exception as exc:
-        handle_model_error(exc, "Feedback generation")
+    result = await run_feedback_with_fallback(f"Interview transcript:\n{transcript}")
     
     try:
         content = result.output
