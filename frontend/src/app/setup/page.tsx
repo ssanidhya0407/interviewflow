@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { startInterview, getSettings } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ArrowRight, Edit2, Check, FileText, Briefcase, Zap, Upload, X, ChevronDown } from "lucide-react";
@@ -41,8 +40,6 @@ export default function SetupPage() {
         time_per_question: 120,
         language: "en"
     });
-
-    const [isNavExpanded, setIsNavExpanded] = useState(false);
 
     useEffect(() => {
         if (isLoggedIn) {
@@ -100,62 +97,6 @@ export default function SetupPage() {
 
     return (
         <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6 transition-colors duration-300 pt-32">
-
-            {/* Centered App Navbar - Expandable */}
-            <motion.nav
-                className="fixed top-8 inset-x-0 z-50 flex justify-center pointer-events-none"
-            >
-                <motion.div
-                    layout
-                    className="pointer-events-auto bg-background/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-border dark:border-white/10 rounded-full shadow-2xl flex items-center p-2 gap-0 overflow-hidden"
-                    transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-                >
-                    <AnimatePresence mode="popLayout">
-                        {isNavExpanded && (
-                            <motion.div
-                                initial={{ opacity: 0, width: 0 }}
-                                animate={{ opacity: 1, width: "auto" }}
-                                exit={{ opacity: 0, width: 0 }}
-                                className="overflow-hidden"
-                            >
-                                <Link href="/" className="px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/5 transition-colors whitespace-nowrap block mr-2">
-                                    Home
-                                </Link>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <button
-                        onClick={() => setIsNavExpanded(!isNavExpanded)}
-                        className="px-4 py-2 rounded-full text-sm font-medium text-foreground bg-secondary/50 dark:bg-white/10 whitespace-nowrap block hover:bg-secondary/80 transition-colors"
-                    >
-                        Set your Interview
-                    </button>
-
-
-
-                    <AnimatePresence mode="popLayout">
-                        {isNavExpanded && (
-                            <motion.div
-                                initial={{ opacity: 0, width: 0 }}
-                                animate={{ opacity: 1, width: "auto" }}
-                                exit={{ opacity: 0, width: 0 }}
-                                className="overflow-hidden"
-                            >
-                                {isLoggedIn ? (
-                                    <Link href="/dashboard" className="px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/5 transition-colors whitespace-nowrap block ml-2">
-                                        Profile
-                                    </Link>
-                                ) : (
-                                    <Link href="/auth/login" className="px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/5 transition-colors whitespace-nowrap block ml-2">
-                                        Sign In
-                                    </Link>
-                                )}
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </motion.div>
-            </motion.nav>
 
             {/* Progress Pill - Moved down below navbar */}
             <div className="fixed top-28 left-1/2 -translate-x-1/2 z-40 bg-background/80 dark:bg-zinc-900/80 backdrop-blur-xl rounded-full px-4 py-2 text-sm font-medium border border-border dark:border-white/10 flex items-center gap-3 shadow-sm">

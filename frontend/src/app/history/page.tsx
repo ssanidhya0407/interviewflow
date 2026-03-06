@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { getInterviews, InterviewRecord } from "@/lib/api";
 import { ThemeToggleButton } from "@/components/ui/ThemeToggle";
 import {
-    LayoutDashboard,
     Calendar,
     Target,
     ArrowUpRight,
@@ -19,10 +18,9 @@ import Link from "next/link";
 
 export default function HistoryPage() {
     const router = useRouter();
-    const { user, isLoading: authLoading, isLoggedIn, logout } = useAuth();
+    const { isLoading: authLoading, isLoggedIn } = useAuth();
     const [interviews, setInterviews] = useState<InterviewRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isNavExpanded, setIsNavExpanded] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !isLoggedIn) {
@@ -80,60 +78,6 @@ export default function HistoryPage() {
             <div className="fixed top-6 right-6 z-50">
                 <ThemeToggleButton />
             </div>
-
-            {/* Centered App Navbar - Reuse Logic */}
-            <motion.nav
-                className="fixed top-8 inset-x-0 z-50 flex justify-center pointer-events-none"
-            >
-                <motion.div
-                    layout
-                    className="pointer-events-auto bg-background/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-border dark:border-white/10 rounded-full shadow-2xl flex items-center p-2 gap-0 overflow-hidden"
-                    transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-                >
-                    <AnimatePresence mode="popLayout">
-                        {isNavExpanded && (
-                            <motion.div
-                                initial={{ opacity: 0, width: 0 }}
-                                animate={{ opacity: 1, width: "auto" }}
-                                exit={{ opacity: 0, width: 0 }}
-                                className="overflow-hidden flex items-center"
-                            >
-                                <Link href="/" className="px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/5 transition-colors whitespace-nowrap block mr-2">
-                                    Home
-                                </Link>
-                                <Link href="/dashboard" className="px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/5 transition-colors whitespace-nowrap block mr-2">
-                                    Dashboard
-                                </Link>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <button
-                        onClick={() => setIsNavExpanded(!isNavExpanded)}
-                        className="px-4 py-2 rounded-full text-sm font-medium text-foreground bg-secondary/50 dark:bg-white/10 whitespace-nowrap block hover:bg-secondary/80 transition-colors"
-                    >
-                        History
-                    </button>
-
-                    <AnimatePresence mode="popLayout">
-                        {isNavExpanded && (
-                            <motion.div
-                                initial={{ opacity: 0, width: 0 }}
-                                animate={{ opacity: 1, width: "auto" }}
-                                exit={{ opacity: 0, width: 0 }}
-                                className="overflow-hidden flex items-center"
-                            >
-                                <button
-                                    onClick={logout}
-                                    className="px-4 py-2 rounded-full text-sm font-medium text-red-500 hover:text-red-400 hover:bg-secondary/50 dark:hover:bg-white/5 transition-colors whitespace-nowrap block ml-2"
-                                >
-                                    Sign Out
-                                </button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </motion.div>
-            </motion.nav>
 
             <main className="max-w-4xl mx-auto px-6 pb-12 relative z-10">
                 <div className="mb-8 flex items-center gap-4">

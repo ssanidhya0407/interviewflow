@@ -8,16 +8,12 @@ import { useTheme } from "@/components/ThemeProvider";
 import { getSettings, updateSettings, UserSettings } from "@/lib/api";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
-    Settings,
-    ArrowLeft,
     Clock,
     Globe,
     Bell,
     Palette,
     Loader2,
-    Check
 } from "lucide-react";
-import Link from "next/link";
 import clsx from "clsx";
 
 const LANGUAGES = [
@@ -33,11 +29,9 @@ const LANGUAGES = [
 export default function SettingsPage() {
     const router = useRouter();
     const { isLoggedIn, isLoading: authLoading } = useAuth();
-    const { theme, setTheme } = useTheme();
+    const { setTheme } = useTheme();
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [saved, setSaved] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !isLoggedIn) {
@@ -66,16 +60,11 @@ export default function SettingsPage() {
     const handleUpdate = async (updates: Partial<UserSettings>) => {
         if (!settings) return;
 
-        setIsSaving(true);
         try {
             await updateSettings(updates);
             setSettings({ ...settings, ...updates });
-            setSaved(true);
-            setTimeout(() => setSaved(false), 2000);
         } catch (error) {
             console.error("Failed to update settings:", error);
-        } finally {
-            setIsSaving(false);
         }
     };
 
@@ -88,35 +77,7 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-            <nav className="sticky top-0 z-50 px-6 py-4 bg-background/80 backdrop-blur-xl border-b border-border">
-                <div className="max-w-2xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-                            <ArrowLeft className="w-4 h-4" />
-                            <span className="text-sm">Dashboard</span>
-                        </Link>
-                        <div className="w-px h-6 bg-border" />
-                        <div className="flex items-center gap-2">
-                            <Settings className="w-5 h-5 text-primary" />
-                            <span className="font-semibold">Settings</span>
-                        </div>
-                    </div>
-
-                    {saved && (
-                        <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0 }}
-                            className="flex items-center gap-2 text-green-500 text-sm"
-                        >
-                            <Check className="w-4 h-4" />
-                            Saved
-                        </motion.div>
-                    )}
-                </div>
-            </nav>
-
+        <div className="min-h-screen bg-background text-foreground transition-colors duration-300 pt-32">
             <main className="max-w-2xl mx-auto px-6 py-12 space-y-8">
                 <section className="bg-card dark:bg-[#111] border border-border dark:border-white/5 rounded-2xl p-6 shadow-sm dark:shadow-none">
                     <div className="flex items-center gap-3 mb-6">

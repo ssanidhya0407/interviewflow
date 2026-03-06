@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useAuth } from "@/components/AuthProvider";
 import { Mail, Lock, User, Loader2, ArrowRight, Zap } from "lucide-react";
 import Link from "next/link";
@@ -15,7 +15,6 @@ export default function RegisterPage() {
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
-    const [isNavExpanded, setIsNavExpanded] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -46,54 +45,6 @@ export default function RegisterPage() {
                 <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px]" />
                 <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-[120px]" />
             </div>
-
-            {/* Expandable Navbar */}
-            <motion.nav
-                className="fixed top-8 inset-x-0 z-50 flex justify-center pointer-events-none"
-            >
-                <motion.div
-                    layout
-                    className="pointer-events-auto bg-background/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-border dark:border-white/10 rounded-full shadow-2xl flex items-center p-2 gap-0 overflow-hidden"
-                    transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-                >
-                    <AnimatePresence mode="popLayout">
-                        {isNavExpanded && (
-                            <motion.div
-                                initial={{ opacity: 0, width: 0 }}
-                                animate={{ opacity: 1, width: "auto" }}
-                                exit={{ opacity: 0, width: 0 }}
-                                className="overflow-hidden"
-                            >
-                                <Link href="/" className="px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/5 transition-colors whitespace-nowrap block mr-2">
-                                    Home
-                                </Link>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <button
-                        onClick={() => setIsNavExpanded(!isNavExpanded)}
-                        className="px-4 py-2 rounded-full text-sm font-medium text-foreground bg-secondary/50 dark:bg-white/10 whitespace-nowrap block hover:bg-secondary/80 transition-colors"
-                    >
-                        Sign Up
-                    </button>
-
-                    <AnimatePresence mode="popLayout">
-                        {isNavExpanded && (
-                            <motion.div
-                                initial={{ opacity: 0, width: 0 }}
-                                animate={{ opacity: 1, width: "auto" }}
-                                exit={{ opacity: 0, width: 0 }}
-                                className="overflow-hidden"
-                            >
-                                <Link href="/auth/login" className="px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/5 transition-colors whitespace-nowrap block ml-2">
-                                    Sign In
-                                </Link>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </motion.div>
-            </motion.nav>
 
             <motion.div
                 initial={{ opacity: 0, y: 20 }}

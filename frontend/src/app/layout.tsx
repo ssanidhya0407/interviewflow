@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/components/AuthProvider";
+import { SmartNavbar } from "@/components/SmartNavbar";
 
 import { Analytics } from "@vercel/analytics/next";
 
 
 export const metadata: Metadata = {
-  title: "CareerFlow.ai | AI Interview Coach",
+  title: "InterviewFlow | AI Interview Coach",
   description: "Master your next interview with an intelligent AI agent.",
 };
 
@@ -27,7 +28,7 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-background text-foreground">
         <ThemeProvider>
           <AuthProvider>
-
+            <SmartNavbar />
             {children}
           </AuthProvider>
         </ThemeProvider>

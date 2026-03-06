@@ -1,34 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { motion, useScroll, useMotionValueEvent } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
-  ArrowRight, ChevronRight, FileText, TrendingUp, Users, Mic, BrainCircuit,
-  Home as HomeIcon, Settings, User, Briefcase, Award, Zap, ArrowUpRight, CheckCircle2
+  ArrowRight, BrainCircuit,
+  Briefcase, Zap, CheckCircle2
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
-import { useAuth } from "@/components/AuthProvider";
-
-import clsx from "clsx";
 
 export default function Home() {
-  const router = useRouter();
-  const { isLoggedIn } = useAuth();
-  const { scrollY } = useScroll();
-  const [hidden, setHidden] = useState(false);
+  const [introStage, setIntroStage] = useState<"liquid" | "complete">("liquid");
 
-  // No auto-redirect - users can view landing page even when logged in
-
-  useMotionValueEvent(scrollY, "change", (latest) => {
-    const previous = scrollY.getPrevious() ?? 0;
-    if (latest > previous && latest > 150) {
-      setHidden(true);
-    } else {
-      setHidden(false);
-    }
-  });
+  useEffect(() => {
+    const timer = setTimeout(() => setIntroStage("complete"), 2300);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30 transition-colors duration-300">
@@ -41,59 +28,52 @@ export default function Home() {
 
 
 
-      {/* Smart Navbar - Collapses to active pill on scroll */}
-      <motion.nav
-        className="fixed top-8 inset-x-0 z-50 flex justify-center pointer-events-none"
-      >
-        <motion.div
-          className="pointer-events-auto bg-background/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-border dark:border-white/10 rounded-full shadow-2xl flex items-center overflow-hidden"
-          animate={{
-            paddingLeft: hidden ? 12 : 8,
-            paddingRight: hidden ? 12 : 8,
-            paddingTop: hidden ? 8 : 6,
-            paddingBottom: hidden ? 8 : 6,
-            gap: hidden ? 0 : 4
-          }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-        >
-          <motion.div animate={{ width: hidden ? 0 : "auto", opacity: hidden ? 0 : 1 }} className="overflow-hidden flex items-center gap-1">
-            <Link href="/" className="px-4 py-2 rounded-full text-sm font-medium text-foreground bg-secondary/50 dark:bg-white/10 whitespace-nowrap block">
-              Home
-            </Link>
-          </motion.div>
-
-          <motion.div animate={{ width: hidden ? 0 : "auto", opacity: hidden ? 0 : 1 }} className="overflow-hidden">
-            <Link href="/setup" className="px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 dark:hover:bg-white/5 transition-colors whitespace-nowrap block">
-              Set your Interview
-            </Link>
-          </motion.div>
-
-
-
-
-          {/* This pill stays visible when collapsed */}
+      <AnimatePresence>
+        {introStage === "liquid" && (
           <motion.div
-            animate={{
-              backgroundColor: hidden ? "var(--secondary)" : "transparent",
-              paddingLeft: 0,
-              paddingRight: 0
-            }}
-            className="rounded-full flex items-center"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.5 } }}
+            className="fixed inset-0 z-[80] bg-background flex items-center justify-center"
           >
-            {isLoggedIn ? (
-              <Link href="/dashboard" className="px-4 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap block">
-                {hidden ? "Home" : "Profile"}
-              </Link>
-            ) : (
-              <Link href="/auth/register" className="px-4 py-2 rounded-full text-sm font-medium text-foreground bg-secondary/50 dark:bg-white/10 hover:bg-secondary/80 transition-colors whitespace-nowrap block">
-                {hidden ? "Home" : "Sign Up"}
-              </Link>
-            )}
+            <div className="relative h-32 md:h-44 flex items-center justify-center">
+              <svg className="w-[760px] max-w-[90vw] h-full" viewBox="0 0 640 170" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <mask id="interviewFlowLiquidMask">
+                    <text x="50%" y="50%" dy=".34em" textAnchor="middle" className="text-7xl md:text-8xl font-bold fill-white tracking-tighter">
+                      InterviewFlow
+                    </text>
+                  </mask>
+                  <linearGradient id="interviewFlowLiquidGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" className="[stop-color:theme(colors.blue.400)] dark:[stop-color:theme(colors.blue.500)]" />
+                    <stop offset="100%" className="[stop-color:theme(colors.blue.600)] dark:[stop-color:theme(colors.blue.700)]" />
+                  </linearGradient>
+                </defs>
+                <text x="50%" y="50%" dy=".34em" textAnchor="middle" className="text-7xl md:text-8xl font-bold fill-black/[0.04] dark:fill-white/[0.05] tracking-tighter">
+                  InterviewFlow
+                </text>
+                <g mask="url(#interviewFlowLiquidMask)">
+                  <motion.rect
+                    initial={{ height: 0, y: 170 }}
+                    animate={{ height: 170, y: 0 }}
+                    transition={{ duration: 2.2, ease: [0.16, 1, 0.3, 1] }}
+                    x="0"
+                    width="640"
+                    fill="url(#interviewFlowLiquidGrad)"
+                    fillOpacity="0.92"
+                  />
+                  <motion.path
+                    d="M0 25 C 70 7, 140 43, 210 25 C 280 7, 350 43, 420 25 C 490 7, 560 43, 640 25 V170 H0 Z"
+                    fill="rgba(59,130,246,0.35)"
+                    initial={{ y: 140 }}
+                    animate={{ y: 0 }}
+                    transition={{ duration: 2.5, ease: [0.16, 1, 0.3, 1] }}
+                  />
+                </g>
+              </svg>
+            </div>
           </motion.div>
-
-
-        </motion.div>
-      </motion.nav>
+        )}
+      </AnimatePresence>
 
       {/* Hero Section */}
       <section className="relative pt-48 pb-32 px-6 flex flex-col items-center text-center max-w-4xl mx-auto z-10">
@@ -331,7 +311,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="py-12 bg-background border-t border-border mt-auto text-center relative z-10">
-        <p className="text-muted-foreground text-sm">© 2026 CareerFlow.ai</p>
+        <p className="text-muted-foreground text-sm">© 2026 InterviewFlow</p>
       </footer>
     </div>
   );
