@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import uuid
 import json
 import os
+import re
 import shutil
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List
@@ -173,6 +174,29 @@ async def test_reminder(user: User = Depends(require_auth)):
 
 # In-memory cache for active sessions (backup/fast access)
 sessions: Dict[str, InterviewState] = {}
+INTERVIEW_COMPLETE_TOKEN = "[[INTERVIEW_COMPLETE]]"
+
+
+def parse_interview_completion(raw_text: str) -> tuple[str, bool]:
+    if not raw_text:
+        return "", False
+
+    is_completed = INTERVIEW_COMPLETE_TOKEN in raw_text
+    cleaned = raw_text.replace(INTERVIEW_COMPLETE_TOKEN, "").strip()
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned, is_completed
+
+
+async def finalize_completed_interview(session_id: str, state: InterviewState):
+    db = get_db()
+    docs = db.collection('interviews').where('session_id', '==', session_id).stream()
+    for doc in docs:
+        doc_ref = db.collection('interviews').document(doc.id)
+        doc_ref.update({
+            'completed_at': datetime.utcnow(),
+            'transcript': [m.model_dump() for m in state.conversation_history]
+        })
+        break
 
 
 async def restore_session(session_id: str) -> Optional[InterviewState]:
@@ -401,47 +425,58 @@ async def chat(req: UserResponse):
         state.follow_up_count += 1
         
         response = await run_interview_with_fallback(
-            f"The candidate said: '{req.content}'. This answer could use more depth. Ask this follow-up: {followup}",
+            (
+                f"The candidate said: '{req.content}'. This answer could use more depth. "
+                f"Ask this follow-up: {followup}\n\n"
+                "Decision rule:\n"
+                f"- If the interview is complete for this candidate profile (role, experience level, interview type/style, and provided resume/JD context), "
+                "give a clear closing statement that the interview is over, ask the candidate to leave the call now, "
+                "and mention the call will auto-end in 30 seconds. "
+                f"Then append {INTERVIEW_COMPLETE_TOKEN} at the end.\n"
+                "- Otherwise ask exactly one follow-up question and stop."
+            ),
             deps=state.interview_config
         )
-        
-        state.conversation_history.append(Message(role="model", content=response.output))
+
+        cleaned_message, is_completed = parse_interview_completion(response.output)
+        state.conversation_history.append(Message(role="model", content=cleaned_message))
+
+        if is_completed:
+            state.is_completed = True
+            await finalize_completed_interview(req.session_id, state)
+            return {"message": cleaned_message, "is_interview_ended": True, "is_followup": False}
+
         await save_session_state(req.session_id, state)
-        return {"message": response.output, "is_interview_ended": False, "is_followup": True}
+        return {"message": cleaned_message, "is_interview_ended": False, "is_followup": True}
     
     state.question_count += 1
     state.follow_up_count = 0
-    
-    if state.question_count >= state.max_questions:
-        response = await run_interview_with_fallback(
-            f"User response: {req.content}. This was the final question. Thank the candidate warmly and say 'Interview Concluded'.",
-            deps=state.interview_config
-        )
-        state.is_completed = True
-        state.conversation_history.append(Message(role="model", content=response.output))
-        
-        db = get_db()
-        docs = db.collection('interviews').where('session_id', '==', req.session_id).stream()
-        for doc in docs:
-            doc_ref = db.collection('interviews').document(doc.id)
-            doc_ref.update({
-                'completed_at': datetime.utcnow(),
-                'transcript': [m.model_dump() for m in state.conversation_history]
-            })
-            break
-        
-        return {"message": response.output, "is_interview_ended": True}
-    
+
     response = await run_interview_with_fallback(
-        f"The candidate says: '{req.content}'. Acknowledge briefly then ask the next question.",
+        (
+            f"The candidate says: '{req.content}'.\n\n"
+            "Decision rule:\n"
+            f"- If the interview is complete for this candidate profile (role, experience level, interview type/style, and provided resume/JD context), "
+            "give a clear closing statement that the interview is over, ask the candidate to leave the call now, "
+            "and mention the call will auto-end in 30 seconds. "
+            f"Then append {INTERVIEW_COMPLETE_TOKEN} at the end.\n"
+            "- Otherwise acknowledge briefly, ask exactly one next question, then stop."
+        ),
         deps=state.interview_config
     )
-    
-    state.conversation_history.append(Message(role="model", content=response.output))
+
+    cleaned_message, is_completed = parse_interview_completion(response.output)
+    state.conversation_history.append(Message(role="model", content=cleaned_message))
+
+    if is_completed:
+        state.is_completed = True
+        await finalize_completed_interview(req.session_id, state)
+        return {"message": cleaned_message, "is_interview_ended": True}
+
     await save_session_state(req.session_id, state)
     
     return {
-        "message": response.output,
+        "message": cleaned_message,
         "is_interview_ended": False,
         "question_number": state.question_count,
         "total_questions": state.max_questions

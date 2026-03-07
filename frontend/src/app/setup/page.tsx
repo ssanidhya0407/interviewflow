@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
@@ -21,21 +21,10 @@ import { useAuth } from "@/components/AuthProvider";
 const ROLES = ["Software Engineer", "Frontend", "Backend", "Full Stack", "Data Scientist", "Product Manager", "DevOps"];
 const LEVELS = ["Intern", "Junior", "Mid-Level", "Senior", "Lead"];
 const TYPES: Array<"Mixed" | "Behavioral" | "Technical" | "System Design"> = ["Mixed", "Behavioral", "Technical", "System Design"];
-const LANGUAGES = [
-  { code: "en", name: "English", flag: "🇺🇸" },
-  { code: "es", name: "Español", flag: "🇪🇸" },
-  { code: "fr", name: "Français", flag: "🇫🇷" },
-  { code: "de", name: "Deutsch", flag: "🇩🇪" },
-  { code: "hi", name: "हिंदी", flag: "🇮🇳" },
-  { code: "zh", name: "中文", flag: "🇨🇳" },
-  { code: "ja", name: "日本語", flag: "🇯🇵" },
-];
-
 const STEPS = [
   { title: "Role", subtitle: "Pick your interview target." },
   { title: "Experience", subtitle: "Set your current level." },
   { title: "Style", subtitle: "Choose challenge mode." },
-  { title: "Language", subtitle: "Choose interview language." },
   { title: "AI Context", subtitle: "Optional resume and JD context." },
   { title: "Summary", subtitle: "Review and begin." },
 ];
@@ -69,15 +58,10 @@ export default function SetupPage() {
           ...prev,
           enable_timer: settings.enable_timer,
           time_per_question: settings.time_per_question,
-          language: settings.language,
         }));
       })
       .catch((e) => console.error("Failed to load settings:", e));
   }, [isLoggedIn]);
-
-  const currentLanguage = useMemo(() => {
-    return LANGUAGES.find((l) => l.code === config.language) || LANGUAGES[0];
-  }, [config.language]);
 
   const progress = STEPS.length > 1 ? (step / (STEPS.length - 1)) * 100 : 0;
 
@@ -250,24 +234,6 @@ export default function SetupPage() {
                 )}
 
                 {step === 3 && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {LANGUAGES.map((lang) => (
-                      <ChoiceButton
-                        key={lang.code}
-                        active={config.language === lang.code}
-                        onClick={() => {
-                          setConfig((prev) => ({ ...prev, language: lang.code }));
-                          goNext();
-                        }}
-                      >
-                        <span className="text-lg">{lang.flag}</span>
-                        <span>{lang.name}</span>
-                      </ChoiceButton>
-                    ))}
-                  </div>
-                )}
-
-                {step === 4 && (
                   <>
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-400 text-[10px] font-semibold uppercase tracking-[0.14em] mb-4">
                       <Zap className="w-3.5 h-3.5" /> Optional
@@ -320,18 +286,17 @@ export default function SetupPage() {
                   </>
                 )}
 
-                {step === 5 && (
+                {step === 4 && (
                   <>
                     <div className="rounded-2xl border border-border/60 bg-background/60 divide-y divide-border/60 mb-7">
                       <SummaryRow label="Role" value={config.role} onEdit={() => setStep(0)} />
                       <SummaryRow label="Experience" value={config.experience_level} onEdit={() => setStep(1)} />
                       <SummaryRow label="Style" value={config.interview_type} onEdit={() => setStep(2)} />
-                      <SummaryRow label="Language" value={`${currentLanguage.flag} ${currentLanguage.name}`} onEdit={() => setStep(3)} />
                       {(resumeFile || config.job_description) && (
                         <SummaryRow
                           label="AI Context"
                           value={`${resumeFile ? "Resume" : ""}${resumeFile && config.job_description ? " + " : ""}${config.job_description ? "JD" : ""}`}
-                          onEdit={() => setStep(4)}
+                          onEdit={() => setStep(3)}
                         />
                       )}
                     </div>
@@ -347,7 +312,7 @@ export default function SetupPage() {
                   </>
                 )}
 
-                {step < 5 && (
+                {step < 4 && (
                   <div className="mt-10 pt-6 border-t border-border/60 flex items-center justify-between">
                     <button
                       onClick={goPrev}

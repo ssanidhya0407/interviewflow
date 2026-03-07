@@ -35,6 +35,8 @@ function InterviewContent() {
     const [showCaptions, setShowCaptions] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [permissionError, setPermissionError] = useState(false);
+    const [isInterviewEnding, setIsInterviewEnding] = useState(false);
+    const [leaveCountdown, setLeaveCountdown] = useState(30);
 
     // Dynamic Caption State
     const [charIndex, setCharIndex] = useState(0);
@@ -53,12 +55,41 @@ function InterviewContent() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const initialMessagePlayedRef = useRef(false);
+    const hasJoinedRef = useRef(false);
+    const isMicOnRef = useRef(false);
+    const isSpeakingRef = useRef(false);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
             synthesisRef.current = window.speechSynthesis;
         }
     }, []);
+
+    const endCallNow = () => {
+        try { recognitionRef.current?.stop?.(); } catch { }
+        try { synthesisRef.current?.cancel?.(); } catch { }
+        try {
+            const stream = mediaRecorderRef.current?.stream;
+            stream?.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+        } catch { }
+        setHasJoined(false);
+        setIsMicOn(false);
+        setIsVideoOn(false);
+        if (sessionId) router.push(`/report?session_id=${sessionId}`);
+        else router.push("/report");
+    };
+
+    useEffect(() => {
+        hasJoinedRef.current = hasJoined;
+    }, [hasJoined]);
+
+    useEffect(() => {
+        isMicOnRef.current = isMicOn;
+    }, [isMicOn]);
+
+    useEffect(() => {
+        isSpeakingRef.current = isSpeaking;
+    }, [isSpeaking]);
 
     useEffect(() => {
         if (sessionIdParam) setSessionId(sessionIdParam);
@@ -117,6 +148,22 @@ function InterviewContent() {
 
         return () => clearInterval(interval);
     }, [enableTimer, timerActive, isSpeaking]);
+
+    useEffect(() => {
+        if (!isInterviewEnding) return;
+        setLeaveCountdown(30);
+        const interval = setInterval(() => {
+            setLeaveCountdown((prev) => {
+                if (prev <= 1) {
+                    clearInterval(interval);
+                    endCallNow();
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [isInterviewEnding]);
 
     // Reset timer when AI finishes speaking (new question)
     useEffect(() => {
@@ -242,6 +289,17 @@ function InterviewContent() {
         recognition.interimResults = true;
         recognition.lang = 'en-US';
 
+        const restartRecognition = () => {
+            if (!isMicOnRef.current || isSpeakingRef.current || !hasJoinedRef.current) return;
+            setTimeout(() => {
+                try {
+                    recognition.start();
+                } catch {
+                    // noop: browser throws if already started
+                }
+            }, 250);
+        };
+
         recognition.onresult = (event: any) => {
             let finalTranscript = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -255,12 +313,26 @@ function InterviewContent() {
         };
 
         recognition.onerror = (event: any) => {
-            if (event.error === 'aborted' || event.error === 'no-speech' || event.error === 'network') return;
+            if (event.error === 'not-allowed') {
+                setIsMicOn(false);
+                return;
+            }
+            if (event.error === 'aborted' || event.error === 'no-speech' || event.error === 'network') {
+                restartRecognition();
+                return;
+            }
             console.error("Speech recognition error", event.error);
-            if (event.error === 'not-allowed') setIsMicOn(false);
+        };
+
+        recognition.onend = () => {
+            restartRecognition();
         };
 
         recognitionRef.current = recognition;
+
+        return () => {
+            try { recognition.stop(); } catch { }
+        };
     }, [hasJoined]);
 
     // Toggle Mic Logic (Recognition + Recorder)
@@ -367,6 +439,7 @@ function InterviewContent() {
     };
 
     const handleSend = async (textOverride?: string) => {
+        if (isInterviewEnding) return;
         const textToSend = textOverride || input;
         if (!textToSend.trim() || !sessionId) return;
 
@@ -392,9 +465,17 @@ function InterviewContent() {
 
         try {
             const data = await sendChat(sessionId, userMsg.content);
-            const aiMsg = { role: "model", content: data.message };
+            const closingSuffix = data.is_interview_ended
+                ? " The interview is now over. Please click End and leave the call. If you stay connected, this call will close automatically in 30 seconds."
+                : "";
+            const finalMessage = `${data.message}${closingSuffix}`;
+            const aiMsg = { role: "model", content: finalMessage };
             setMessages(prev => [...prev, aiMsg]);
-            speakText(data.message);
+            speakText(finalMessage);
+            if (data.is_interview_ended) {
+                setIsInterviewEnding(true);
+                setIsMicOn(false);
+            }
         } catch (error) {
             console.error("Chat error", error);
         } finally {
@@ -409,25 +490,25 @@ function InterviewContent() {
 
     if (!hasJoined) {
         return (
-            <div className="min-h-screen bg-background text-foreground pt-32 pb-20">
-                <div className="max-w-7xl mx-auto px-6 lg:px-8">
-                    <div className="max-w-lg mx-auto rounded-[32px] border border-border/60 bg-card dark:bg-[#0C0C0C] p-10 text-center shadow-sm">
-                        <div className="w-24 h-24 rounded-full bg-secondary dark:bg-[#111] border border-border/60 mx-auto flex items-center justify-center mb-6">
+            <div className="min-h-screen bg-background text-foreground pt-36 pb-20 px-6">
+                <div className="min-h-[calc(100vh-14rem)] max-w-4xl mx-auto flex items-center justify-center text-center">
+                    <div>
+                        <div className="w-24 h-24 rounded-full bg-secondary dark:bg-[#111] border border-border/60 mx-auto flex items-center justify-center mb-8">
                             <Video className="w-9 h-9 text-blue-500" />
                         </div>
-                        <h1 className="text-4xl font-bold tracking-tight mb-2">Video Interview</h1>
-                        <p className="text-muted-foreground mb-8 text-lg">Join the session to begin.</p>
+                        <h1 className="text-5xl md:text-6xl font-bold tracking-tight">Video Interview</h1>
+                        <p className="text-muted-foreground mt-4 mb-12 text-xl">Join the session to begin.</p>
                         <button
                             onClick={handleJoinCall}
                             disabled={joining}
-                            className="w-full h-12 rounded-full bg-primary text-primary-foreground font-semibold transition-all hover:opacity-90 disabled:opacity-60"
+                            className="w-full max-w-xl h-14 rounded-full bg-primary text-primary-foreground text-2xl font-semibold transition-all hover:opacity-90 disabled:opacity-60"
                         >
                             {joining ? "Joining..." : "Join Interview"}
                         </button>
                         {permissionError && (
                             <p className="mt-4 text-destructive text-sm font-medium">Please allow camera and microphone access.</p>
                         )}
-                        <Link href="/setup" className="mt-6 inline-block text-muted-foreground hover:text-foreground transition-colors text-sm">
+                        <Link href="/setup" className="mt-8 inline-block text-muted-foreground hover:text-foreground transition-colors text-lg">
                             Cancel
                         </Link>
                     </div>
@@ -449,8 +530,10 @@ function InterviewContent() {
 
             <div className="relative z-20 flex items-center justify-between px-6 py-6 lg:px-12">
                 <div className="flex items-center gap-3 bg-white/5 backdrop-blur-xl px-4 py-2 rounded-full border border-white/5">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]" />
-                    <span className="text-xs font-medium text-white/80 tracking-wide uppercase">Live Interview</span>
+                    <div className={clsx("w-2 h-2 rounded-full shadow-[0_0_10px]", isInterviewEnding ? "bg-amber-400 shadow-amber-300/80" : "bg-green-500 shadow-[#22c55e]")} />
+                    <span className="text-xs font-medium text-white/80 tracking-wide uppercase">
+                        {isInterviewEnding ? `Interview Ending • ${leaveCountdown}s` : "Live Interview"}
+                    </span>
                 </div>
             </div>
 
@@ -577,12 +660,13 @@ function InterviewContent() {
                         {isVideoOn ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
                     </button>
                     <div className="w-[1px] h-8 bg-white/10 mx-2" />
-                    <Link href={`/report?session_id=${sessionId || ""}`}>
-                        <button className="h-14 px-8 rounded-full bg-red-500 hover:bg-red-600 text-white font-medium transition-all flex items-center gap-2">
+                    <button
+                        onClick={endCallNow}
+                        className="h-14 px-8 rounded-full bg-red-500 hover:bg-red-600 text-white font-medium transition-all flex items-center gap-2"
+                    >
                             <PhoneOff className="w-5 h-5" />
                             <span className="hidden sm:inline">End</span>
-                        </button>
-                    </Link>
+                    </button>
                 </div>
             </div>
 

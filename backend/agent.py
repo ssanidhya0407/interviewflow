@@ -112,6 +112,17 @@ def dynamic_system_prompt(ctx: RunContext[InterviewConfig]) -> str:
     base = build_system_prompt(config)
     
     context = f"\n\nYou are interviewing for: {config.experience_level} {config.role}"
+    context += (
+        "\n\nQuestion Curation Rules (must follow strictly):"
+        "\n1. Prioritize relevance to the exact role and experience level."
+        "\n2. Match question difficulty and depth to the candidate's level."
+        "\n3. Follow the selected interview type and interviewer style throughout."
+        "\n4. If company context is provided, align to that company's focus areas."
+        "\n5. If resume context is provided, ask targeted questions grounded in the candidate's projects, tools, and claims."
+        "\n6. If job description is provided, prioritize requirements and responsibilities from it over generic questions."
+        "\n7. Avoid repetitive or generic questions unless needed as a focused follow-up."
+        "\n8. Conclude only when you have enough evidence to assess role fit for this specific profile."
+    )
     
     if config.topic:
         context += f"\nFocus area: {config.topic}"
